@@ -3,7 +3,7 @@ package ledger
 import (
 	"testing"
 
-	"github.com/abdulaziz/ledger-service/internal/domain"
+	"github.com/Azizx1/ledger-service/internal/domain"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 

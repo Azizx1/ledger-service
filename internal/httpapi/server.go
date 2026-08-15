@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/abdulaziz/ledger-service/internal/domain"
-	"github.com/abdulaziz/ledger-service/internal/observability"
-	"github.com/abdulaziz/ledger-service/internal/service"
+	"github.com/Azizx1/ledger-service/internal/domain"
+	"github.com/Azizx1/ledger-service/internal/observability"
+	"github.com/Azizx1/ledger-service/internal/service"
 )
 
 const maxRequestBytes = 1 << 20

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/abdulaziz/ledger-service/internal/domain"
-	"github.com/abdulaziz/ledger-service/internal/ledger"
+	"github.com/Azizx1/ledger-service/internal/domain"
+	"github.com/Azizx1/ledger-service/internal/ledger"
 	tb "github.com/tigerbeetle/tigerbeetle-go"
 )
 

@@ -1,4 +1,4 @@
-module github.com/abdulaziz/ledger-service
+module github.com/Azizx1/ledger-service
 
 go 1.26.0
 

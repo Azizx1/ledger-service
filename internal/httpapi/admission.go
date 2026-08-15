@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/abdulaziz/ledger-service/internal/domain"
+	"github.com/Azizx1/ledger-service/internal/domain"
 )
 
 type admissionController struct {

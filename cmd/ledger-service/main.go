@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/abdulaziz/ledger-service/internal/config"
-	"github.com/abdulaziz/ledger-service/internal/httpapi"
-	"github.com/abdulaziz/ledger-service/internal/ledger"
-	"github.com/abdulaziz/ledger-service/internal/observability"
-	"github.com/abdulaziz/ledger-service/internal/service"
+	"github.com/Azizx1/ledger-service/internal/config"
+	"github.com/Azizx1/ledger-service/internal/httpapi"
+	"github.com/Azizx1/ledger-service/internal/ledger"
+	"github.com/Azizx1/ledger-service/internal/observability"
+	"github.com/Azizx1/ledger-service/internal/service"
 )
 
 func main() {
