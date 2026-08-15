@@ -1,0 +1,12 @@
+.data
+.git
+.env
+bin
+coverage.out
+ledger-service
+*.log
+*.prof
+.DS_Store
+.github
+docs
+README.md
