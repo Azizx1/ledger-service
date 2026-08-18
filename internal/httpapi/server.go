@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Azizx1/ledger-service/internal/domain"
 	"github.com/Azizx1/ledger-service/internal/observability"
@@ -25,7 +26,9 @@ type Server struct {
 
 func NewHandler(ledgerService *service.Service, logger *slog.Logger, metrics *observability.Metrics, maxConcurrentRequests int) http.Handler {
 	server := &Server{service: ledgerService, logger: logger}
-	admission := newAdmissionController(maxConcurrentRequests)
+	admission := newAdmissionController(maxConcurrentRequests, func() bool {
+		return ledgerService.LedgerHealth().Ready
+	}, metrics)
 	mux := http.NewServeMux()
 
 	server.handle(mux, metrics, admission, "create_account", "POST /v1/accounts", server.createAccount)
@@ -165,7 +168,22 @@ func (s *Server) live(writer http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) ready(writer http.ResponseWriter, _ *http.Request) {
-	writeJSON(writer, http.StatusOK, map[string]string{"status": "ready"})
+	health := s.service.LedgerHealth()
+	body := map[string]any{
+		"status":                 "ready",
+		"ledger_calls_in_flight": health.InFlight,
+		"oldest_ledger_call_ms":  health.Oldest.Milliseconds(),
+	}
+	if !health.LastSuccess.IsZero() {
+		body["last_ledger_success"] = health.LastSuccess.UTC().Format(time.RFC3339Nano)
+	}
+	status := http.StatusOK
+	if !health.Ready {
+		status = http.StatusServiceUnavailable
+		body["status"] = "not_ready"
+		body["reason"] = "ledger_stalled"
+	}
+	writeJSON(writer, status, body)
 }
 
 func decodeJSON(writer http.ResponseWriter, request *http.Request, destination any) error {

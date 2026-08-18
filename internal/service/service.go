@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Azizx1/ledger-service/internal/domain"
@@ -25,6 +24,8 @@ type Ledger interface {
 
 type Metrics interface {
 	ObserveOperation(kind, outcome string, elapsed time.Duration)
+	ObserveLedgerCall(kind, outcome string, elapsed time.Duration)
+	SetLedgerCallsInFlight(inFlight int)
 }
 
 type accountMetadata struct {
@@ -40,7 +41,8 @@ type Service struct {
 	riskLimitCents       uint64
 	logger               *slog.Logger
 	metrics              Metrics
-	accountMetadata      sync.Map
+	accountMetadata      *metadataCache
+	ledgerHealth         *observedLedger
 }
 
 func New(
@@ -49,6 +51,8 @@ func New(
 	authorizationTimeout time.Duration,
 	riskDelay time.Duration,
 	riskLimitCents uint64,
+	ledgerStallThreshold time.Duration,
+	accountMetadataCacheSize int,
 	logger *slog.Logger,
 	metrics Metrics,
 ) *Service {
@@ -56,14 +60,17 @@ func New(
 		logger = slog.Default()
 	}
 	authorizationTimeout = ((authorizationTimeout + time.Second - 1) / time.Second) * time.Second
+	observed := newObservedLedger(ledgerClient, ledgerStallThreshold, metrics)
 	return &Service{
-		ledger:               ledgerClient,
+		ledger:               observed,
 		ledgerID:             ledgerID,
 		authorizationTimeout: authorizationTimeout,
 		riskDelay:            riskDelay,
 		riskLimitCents:       riskLimitCents,
 		logger:               logger,
 		metrics:              metrics,
+		accountMetadata:      newMetadataCache(accountMetadataCacheSize),
+		ledgerHealth:         observed,
 	}
 }
 
@@ -241,8 +248,7 @@ func (s *Service) rememberAccount(account tb.Account) {
 }
 
 func (s *Service) requireAccountKind(id tb.Uint128, expected domain.AccountKind) (accountMetadata, error) {
-	if cached, ok := s.accountMetadata.Load(id); ok {
-		metadata := cached.(accountMetadata)
+	if metadata, ok := s.accountMetadata.Load(id); ok {
 		if metadata.kind == expected {
 			return metadata, nil
 		}
@@ -259,6 +265,10 @@ func (s *Service) requireAccountKind(id tb.Uint128, expected domain.AccountKind)
 	}
 	s.accountMetadata.Store(id, metadata)
 	return metadata, nil
+}
+
+func (s *Service) LedgerHealth() LedgerHealth {
+	return s.ledgerHealth.Health()
 }
 
 func (s *Service) metadataForAccount(account tb.Account) (accountMetadata, bool) {

@@ -156,7 +156,13 @@ func (s *Service) executeTransaction(
 		)
 		return domain.TransactionResponse{}, 0, err
 	}
+	amount, _ := transfer.Amount.Uint64()
 	if isIdempotencyConflict(result.Status) {
+		s.observeCompletion(
+			kind, requestID, "conflict", amount, started, result.Status.String(),
+			"debit_account_id", transfer.DebitAccountID.String(),
+			"credit_account_id", transfer.CreditAccountID.String(),
+		)
 		return domain.TransactionResponse{}, 0, domain.ErrIdempotencyConflict
 	}
 
@@ -174,7 +180,6 @@ func (s *Service) executeTransaction(
 		response.ErrorCode, response.Message, httpStatus = errorCode(result.Status)
 	}
 
-	amount, _ := transfer.Amount.Uint64()
 	s.observeCompletion(
 		kind,
 		requestID,
@@ -235,6 +240,16 @@ func (s *Service) Authorize(ctx context.Context, request domain.AuthorizationReq
 		}
 		if found {
 			if !sameTransfer(existing, transfer) {
+				s.observeCompletion(
+					domain.OperationAuthorization,
+					request.RequestID,
+					"conflict",
+					request.AmountCents,
+					started,
+					"existing_transfer_payload_conflict",
+					"card_id", request.CardID,
+					"merchant_id", request.MerchantID,
+				)
 				return domain.AuthorizationResponse{}, 0, domain.ErrIdempotencyConflict
 			}
 			expiresAt := time.Unix(0, int64(existing.Timestamp)).Add(s.authorizationTimeout).UTC()
@@ -297,6 +312,16 @@ func (s *Service) Authorize(ctx context.Context, request domain.AuthorizationReq
 		return domain.AuthorizationResponse{}, 0, err
 	}
 	if isIdempotencyConflict(result.Status) {
+		s.observeCompletion(
+			domain.OperationAuthorization,
+			request.RequestID,
+			"conflict",
+			request.AmountCents,
+			started,
+			result.Status.String(),
+			"card_id", request.CardID,
+			"merchant_id", request.MerchantID,
+		)
 		return domain.AuthorizationResponse{}, 0, domain.ErrIdempotencyConflict
 	}
 
@@ -485,6 +510,16 @@ func (s *Service) IncrementAuthorization(ctx context.Context, request domain.Inc
 		}
 	}
 	if isIdempotencyConflict(result.Status) {
+		s.observeCompletion(
+			domain.OperationAuthorizationIncrement,
+			request.RequestID,
+			"conflict",
+			request.IncrementCents,
+			started,
+			result.Status.String(),
+			"authorization_id", request.AuthorizationID,
+			"card_id", original.DebitAccountID.String(),
+		)
 		return domain.IncrementAuthorizationResponse{}, 0, domain.ErrIdempotencyConflict
 	}
 
@@ -564,6 +599,16 @@ func (s *Service) lookupExistingIncrement(
 		Flags:           tb.TransferFlags{Pending: true}.ToUint16(),
 	}
 	if !sameTransferExceptTimeout(existing, expected) {
+		s.observeCompletion(
+			domain.OperationAuthorizationIncrement,
+			request.RequestID,
+			"conflict",
+			request.IncrementCents,
+			started,
+			"existing_increment_payload_conflict",
+			"authorization_id", request.AuthorizationID,
+			"card_id", original.DebitAccountID.String(),
+		)
 		return domain.IncrementAuthorizationResponse{}, 0, true, domain.ErrIdempotencyConflict
 	}
 	response := domain.IncrementAuthorizationResponse{

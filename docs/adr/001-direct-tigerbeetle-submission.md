@@ -33,3 +33,6 @@ state-dependent error.
 - A TigerBeetle call has no normal network timeout. HTTP cancellation does not imply that the
   financial command was canceled; callers recover by retrying the immutable transfer with the
   same ID.
+- The service tracks in-flight SDK calls. An observed stall opens readiness and admission
+  protection without issuing a competing dependency probe. The original command remains
+  ambiguous until TigerBeetle responds, so retries must keep the same transfer ID.

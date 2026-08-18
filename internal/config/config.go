@@ -19,6 +19,8 @@ type Config struct {
 	RiskEvaluationDelay       time.Duration
 	RiskAutoApproveLimitCents uint64
 	MaxConcurrentRequests     int
+	LedgerStallThreshold      time.Duration
+	AccountMetadataCacheSize  int
 }
 
 func Load() (Config, error) {
@@ -52,6 +54,16 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("MAX_CONCURRENT_REQUESTS must be between 1 and 1000000")
 	}
 
+	ledgerStallThreshold, err := durationEnv("LEDGER_STALL_THRESHOLD", 2*time.Second)
+	if err != nil || ledgerStallThreshold < 100*time.Millisecond || ledgerStallThreshold > time.Minute {
+		return Config{}, fmt.Errorf("LEDGER_STALL_THRESHOLD must be between 100ms and 1m")
+	}
+
+	accountMetadataCacheSize, err := intEnv("ACCOUNT_METADATA_CACHE_SIZE", 100_000)
+	if err != nil || accountMetadataCacheSize < 0 || accountMetadataCacheSize > 10_000_000 {
+		return Config{}, fmt.Errorf("ACCOUNT_METADATA_CACHE_SIZE must be between 0 and 10000000")
+	}
+
 	addresses := strings.Split(env("TB_ADDRESSES", "127.0.0.1:3000"), ",")
 	for i := range addresses {
 		addresses[i] = strings.TrimSpace(addresses[i])
@@ -69,6 +81,8 @@ func Load() (Config, error) {
 		RiskEvaluationDelay:       riskDelay,
 		RiskAutoApproveLimitCents: riskLimit,
 		MaxConcurrentRequests:     maxConcurrentRequests,
+		LedgerStallThreshold:      ledgerStallThreshold,
+		AccountMetadataCacheSize:  accountMetadataCacheSize,
 	}, nil
 }
 

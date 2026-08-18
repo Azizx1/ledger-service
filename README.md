@@ -32,8 +32,9 @@ flowchart LR
 
 The adapter converts the SDK's batch-shaped API into the four single-command methods used by the
 service. The shared SDK client coalesces compatible concurrent calls while its current request is
-in flight. The process-local account cache contains only immutable, fully validated account
-metadata; balances and idempotency never live in memory.
+in flight. The bounded process-local account cache contains only immutable, fully validated
+account metadata; balances and idempotency never live in memory. Eviction only causes another
+TigerBeetle lookup and cannot affect ledger correctness.
 
 See [ADR 001](docs/adr/001-direct-tigerbeetle-submission.md) and TigerBeetle's
 [request documentation](https://docs.tigerbeetle.com/coding/requests/).
@@ -176,19 +177,26 @@ Every value remains overrideable; run `./bin/loadtest -h` to see the flags.
 - `GET /health/ready`
 - `GET /metrics`
 
-Ledger routes have bounded admission through `MAX_CONCURRENT_REQUESTS` (default 4,096). Excess
-requests receive `503`, `Retry-After: 1`, and must be retried with the same `request_id`. Health
-and metric routes remain available outside those slots.
+Ledger routes have bounded admission through `MAX_CONCURRENT_REQUESTS` (default 4,096). This is an
+in-flight concurrency limit, not a requests-per-second limit. Excess requests receive `503`,
+`Retry-After: 1`, and must be retried with the same `request_id`. Health and metric routes remain
+available outside those slots.
 
-Readiness means startup connected to TigerBeetle and provisioned the two system accounts. It does
-not issue a ledger command on every probe: TigerBeetle requests deliberately have no client-side
-timeout, so a dependency probe could itself wait indefinitely and compete with financial work.
+The service observes every TigerBeetle SDK call. If the oldest in-flight call exceeds
+`LEDGER_STALL_THRESHOLD`, readiness returns `503` and new ledger-route requests fail fast with
+`ledger_stalled`. The probe does not submit another ledger command. This is observation-based: an
+idle service cannot detect an outage until it attempts work. A caller timeout still does not
+cancel a command already submitted to TigerBeetle, so every ambiguous response must be retried
+with the same immutable request ID.
 
 ## Observability
 
-Every completed financial attempt emits one JSON line. A 64 KiB buffer reduces syscall and logger
-lock overhead and is flushed during graceful shutdown; TigerBeetle, not the operational log, is
-the durable financial record. Values such as IDs are shortened here only for readability:
+Every completed financial attempt emits a transaction-outcome JSON line, including idempotency
+conflicts that reached TigerBeetle. Validation and admission failures remain represented by HTTP
+metrics rather than high-volume request logs. A 64 KiB buffer reduces syscall and logger lock
+overhead and is flushed during graceful shutdown. A crash may lose the final buffered operational
+lines; TigerBeetle, not this log, is the durable financial record. Values such as IDs are shortened
+here only for readability:
 
 ```json
 {"time":"2026-08-16T00:10:24+03:00","level":"INFO","msg":"ledger operation completed","kind":"authorization","request_id":"1a00742f...","transaction_id":"1a00742f...","status":"approved","ledger_status":"TransferCreated","amount_cents":1,"duration_ms":212,"card_id":"19d00000...","merchant_id":"MRC_LOAD_TEST"}
@@ -201,6 +209,9 @@ HTTP counts by route and status:
 ledger_operations_total{kind="authorization",outcome="approved"} 34031
 ledger_operation_duration_seconds_count{kind="authorization"} 34031
 ledger_http_requests_total{method="POST",route="authorization",status="200"} 34031
+ledger_admission_in_flight 42
+ledger_admission_rejected_total{reason="capacity"} 3
+ledger_dependency_calls_in_flight 18
 ```
 
 ## Performance
@@ -210,15 +221,19 @@ logging enabled, produced these median results:
 
 | Operation | Throughput | p99 | SLA |
 |---|---:|---:|---|
-| Top-up | 12,531 req/s | 42.1 ms | Pass |
-| Withdrawal | 12,623 req/s | 49.1 ms | Pass |
-| Authorization | 13,443 req/s | 274.8 ms | Pass |
-| Increment | 10,543 req/s | 423.6 ms | Pass |
+| Top-up | 13,406 req/s | 25.4 ms | Pass |
+| Withdrawal | 13,406 req/s | 41.2 ms | Pass |
+| Authorization | 13,617 req/s | 276.9 ms | Pass |
+| Increment | 11,794 req/s | 321.9 ms | Pass |
 
 Every measured request succeeded and every challenge-sized run stayed within its p99 latency
-target. Median throughput exceeded 10,000 requests/s for every operation; one increment run did
-not. A longer one-replica soak also exposed checkpoint/compaction tail spikes, so this is not a
-production SLA claim. See [the full methodology, raw ranges, longer-run results, and limitations](docs/performance.md).
+target. Every individual run exceeded 10,000 requests/s. A longer one-replica soak exposed
+checkpoint/compaction tail spikes, so this is not a production SLA claim. See
+[the full methodology, raw ranges, longer-run results, and limitations](docs/performance.md).
+
+The table was re-measured on 2026-08-19 after adding dependency health and the bounded cache.
+Authorization throughput changed by +1.8% and increment throughput by -3.5% against a fresh-state
+build of the previous revision. See the full report for the A/B methodology and limitations.
 
 ## Configuration
 
@@ -231,7 +246,9 @@ production SLA claim. See [the full methodology, raw ranges, longer-run results,
 | `AUTHORIZATION_TIMEOUT` | `1h` | TigerBeetle pending-transfer timeout |
 | `RISK_EVALUATION_DELAY` | `200ms` | Simulated cancelable risk delay |
 | `RISK_AUTO_APPROVE_LIMIT_CENTS` | `100000` | Simulated automatic-approval ceiling |
-| `MAX_CONCURRENT_REQUESTS` | `4096` | In-flight ledger-route limit |
+| `MAX_CONCURRENT_REQUESTS` | `4096` | In-flight ledger-route limit; this is concurrency, not requests per second |
+| `LEDGER_STALL_THRESHOLD` | `2s` | Oldest in-flight TigerBeetle call age that opens admission and readiness protection |
+| `ACCOUNT_METADATA_CACHE_SIZE` | `100000` | Maximum immutable account-metadata entries; `0` disables the cache |
 
 Production uses six replicas across three low-latency sites and all six addresses in every client.
 See [the production topology](docs/production-topology.md).

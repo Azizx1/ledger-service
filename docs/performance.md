@@ -1,5 +1,33 @@
 # Local performance report
 
+## Post-resilience regression check
+
+Re-measured on 2026-08-19 after adding dependency-call tracking, stall readiness/admission
+protection, and the bounded account-metadata cache. The modified build and the unmodified `HEAD`
+build each used a newly formatted TigerBeetle 0.17.9 data file, the same host, load generator,
+TigerBeetle binary, seeded accounts, and operation order. Each value is the median of three
+10,000-request runs after 1,000 warm-up requests.
+
+| Operation | Modified throughput | Previous throughput | Throughput change | Modified p99 | Previous p99 | p99 change |
+|---|---:|---:|---:|---:|---:|---:|
+| Top-up | 13,406 req/s | 12,368 req/s | +8.4% | 25.4 ms | 28.6 ms | -11.2% |
+| Withdrawal | 13,406 req/s | 12,166 req/s | +10.2% | 41.2 ms | 43.3 ms | -4.9% |
+| Authorization | 13,617 req/s | 13,375 req/s | +1.8% | 276.9 ms | 283.0 ms | -2.2% |
+| Increment | 11,794 req/s | 12,223 req/s | -3.5% | 321.9 ms | 336.3 ms | -4.3% |
+
+All 248,000 warm-up and measured requests across the two builds succeeded. Every modified run's
+p99 and maximum request remained within its operation SLA. The first run of each high-concurrency
+operation still had the widest tail, so three short local runs are not sufficient for a hard
+production maximum-latency claim.
+
+The modified service emitted 124,004 transaction lines (46 MiB), matching the previous build's
+log volume. Validation and overload visibility remains available through HTTP metrics without a
+per-request audit event. The posted-operation result may benefit from replacing `sync.Map` with a
+bounded `map` guarded by `RWMutex` for hot-account reads, but the test does not isolate that
+component and should not be treated as proof of causation.
+
+## 2026-08-16 historical baseline
+
 Measured on 2026-08-16 with the service's 64 KiB buffered JSON transaction log enabled.
 
 ## Environment

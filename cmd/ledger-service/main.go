@@ -57,6 +57,8 @@ func run(logger *slog.Logger) error {
 		configuration.AuthorizationTimeout,
 		configuration.RiskEvaluationDelay,
 		configuration.RiskAutoApproveLimitCents,
+		configuration.LedgerStallThreshold,
+		configuration.AccountMetadataCacheSize,
 		logger,
 		metrics,
 	)

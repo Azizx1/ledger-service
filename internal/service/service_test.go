@@ -503,6 +503,8 @@ func newTestServiceWithRisk(t *testing.T, ledgerClient *fakeLedger, riskDelay ti
 		time.Hour,
 		riskDelay,
 		riskLimit,
+		2*time.Second,
+		1_000,
 		slog.New(slog.DiscardHandler),
 		nil,
 	)
