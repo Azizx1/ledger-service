@@ -95,7 +95,28 @@ and card-settlement-payable accounts.
 
 ## Run locally
 
-The Docker environment is a disposable, one-replica development cluster:
+Docker is not required. Run the native development processes in two terminals:
+
+```sh
+# Terminal 1: downloads TigerBeetle 0.17.9 when needed, formats once, then starts it.
+make dev-tb
+
+# Terminal 2: builds and starts the API.
+make dev-api
+```
+
+TigerBeetle listens on `127.0.0.1:3000` and the API listens on
+`http://127.0.0.1:8080`. Both commands run in the foreground; press `Ctrl-C` in each terminal to
+stop them. The native TigerBeetle binary is cached under `.tools/`, and its data remains under
+`.data/tigerbeetle/` between runs.
+
+To erase every local account and transaction, first stop both development commands, then run:
+
+```sh
+make dev-reset
+```
+
+Alternatively, the Docker environment starts both processes in the background:
 
 ```sh
 make up
@@ -105,7 +126,7 @@ curl --fail http://localhost:8080/health/ready
 `make up` formats the data file once, starts TigerBeetle, builds the service, and exposes port
 8080. `make down` preserves `.data/tigerbeetle/0_0.tigerbeetle`.
 
-On Apple Silicon with macOS 26, use the Make targets. TigerBeetle 0.17.9's packaged arm64 archive
+On Apple Silicon with macOS 26, use the Make targets. TigerBeetle 0.17.9's Go client archive
 requires Apple's classic linker; the workaround is scoped to local builds and tests. Linux and
 Docker do not use it.
 

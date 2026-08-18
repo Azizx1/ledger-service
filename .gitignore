@@ -1,4 +1,5 @@
 /.data/
+/.tools/
 /.env
 /bin/
 /coverage.out
