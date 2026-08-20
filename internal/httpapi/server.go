@@ -38,7 +38,7 @@ func NewHandler(ledgerService *service.Service, logger *slog.Logger, metrics *ob
 	server.handle(mux, metrics, admission, "card_allocation", "POST /v1/card-allocations", server.allocateToCard)
 	server.handle(mux, metrics, admission, "card_return", "POST /v1/card-returns", server.returnFromCard)
 	server.handle(mux, metrics, admission, "authorization", "POST /v1/authorizations", server.authorize)
-	server.handle(mux, metrics, admission, "authorization_increment", "POST /v1/authorizations/{authorization_id}/increments", server.increment)
+	server.handle(mux, metrics, admission, "authorization_increment", "POST /v1/authorizations/increments", server.increment)
 	mux.Handle("GET /health/live", metrics.HTTPMiddleware("liveness", http.HandlerFunc(server.live)))
 	mux.Handle("GET /health/ready", metrics.HTTPMiddleware("readiness", http.HandlerFunc(server.ready)))
 	mux.Handle("GET /metrics", metrics.Handler())
@@ -149,12 +149,6 @@ func (s *Server) increment(writer http.ResponseWriter, request *http.Request) {
 		writeError(writer, err)
 		return
 	}
-	authorizationID := request.PathValue("authorization_id")
-	if input.AuthorizationID != "" && input.AuthorizationID != authorizationID {
-		writeError(writer, fmt.Errorf("%w: authorization_id in path and body must match", domain.ErrInvalidRequest))
-		return
-	}
-	input.AuthorizationID = authorizationID
 	response, status, err := s.service.IncrementAuthorization(request.Context(), input)
 	if err != nil {
 		writeError(writer, err)

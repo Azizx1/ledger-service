@@ -236,10 +236,11 @@ func execute(client *http.Client, configuration options) result {
 	}
 	switch configuration.operation {
 	case "increment":
-		path = "/v1/authorizations/" + configuration.authorizationID + "/increments"
+		path = "/v1/authorizations/increments"
 		payload = map[string]any{
-			"request_id":      requestID,
-			"increment_cents": configuration.amountCents,
+			"request_id":       requestID,
+			"authorization_id": configuration.authorizationID,
+			"increment_cents":  configuration.amountCents,
 		}
 	case "topup":
 		path = "/v1/topups"

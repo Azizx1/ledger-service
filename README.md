@@ -156,9 +156,9 @@ curl -X POST http://localhost:8080/v1/authorizations \
   -H 'Content-Type: application/json' \
   -d '{"request_id":"19c5d2b61ac27dd55d9c9daff5af445","card_id":"19c5d2b61ac27dd55d9c9daff5af442","merchant_id":"MRC_009","amount_cents":2500}'
 
-curl -X POST http://localhost:8080/v1/authorizations/19c5d2b61ac27dd55d9c9daff5af445/increments \
+curl -X POST http://localhost:8080/v1/authorizations/increments \
   -H 'Content-Type: application/json' \
-  -d '{"request_id":"19c5d2b61ac27dd55d9c9daff5af446","increment_cents":500}'
+  -d '{"request_id":"19c5d2b61ac27dd55d9c9daff5af446","authorization_id":"19c5d2b61ac27dd55d9c9daff5af445","increment_cents":500}'
 
 curl http://localhost:8080/v1/accounts/19c5d2b61ac27dd55d9c9daff5af442
 ```
@@ -193,7 +193,7 @@ Every value remains overrideable; run `./bin/loadtest -h` to see the flags.
 - `POST /v1/card-allocations`
 - `POST /v1/card-returns`
 - `POST /v1/authorizations`
-- `POST /v1/authorizations/{authorization_id}/increments`
+- `POST /v1/authorizations/increments`
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /metrics`
